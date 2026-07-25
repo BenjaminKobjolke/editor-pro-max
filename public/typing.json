@@ -1,0 +1,11 @@
+{
+  "typingSegments": [
+    {"start": 27.061688, "end": 28.079062},
+    {"start": 30.336, "end": 30.893062},
+    {"start": 31.378, "end": 32.246625},
+    {"start": 33.601813, "end": 34.5}
+  ],
+  "source": "public/assets/20260724_youtube_posts.mp4",
+  "labeledBy": "claude-vision",
+  "notes": "Keyboard visible in silence-frames at t=28,32,34 (Android keyboard, app w/ green 'Y' icon, 'Summarize this text' field). Not visible at t=25 (blank loading screen), t=35+ (fetching/reading result, no keyboard through end of the giant 33.6-58.6s silence gap and all later silence segments). Segment 30.336-30.893 (0.56s) has no sampled frame (shorter than 1s) but sits between two confirmed-keyboard segments with only a brief speech gap on either side, so assumed typing. The 33.6-58.6s segment is split: typing only through ~34.5s (last confirmed keyboard frame at t=34, gone by t=35), the remaining ~34.5-58.6s is pure silence (fetching + silently reading the result) and gets cut, not sped up."
+}

@@ -151,6 +151,8 @@ Use `loopVolumeCurveBehavior` to control how the frame count behaves when loopin
 />
 ```
 
+**Gotcha:** if a custom `volume` callback is keyed to absolute composition time (e.g. ducking/swelling around specific composition frames, not the audio's own position), always set `loopVolumeCurveBehavior="extend"` - even when the source track looks long enough that you don't expect it to loop. With the default `"repeat"`, the moment the source *does* loop (shorter track than expected, a trimmed/retimed edit, reused on a longer composition later) the callback's `f` silently resets to 0 and the whole curve desyncs from the video with no error or warning.
+
 ## Pitch
 
 Use `toneFrequency` to adjust the pitch without affecting speed. Values range from 0.01 to 2:

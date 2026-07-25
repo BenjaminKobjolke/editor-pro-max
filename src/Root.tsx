@@ -1,7 +1,10 @@
-import {Composition, Folder} from "remotion";
+import {Composition, Folder, staticFile} from "remotion";
+import {getVideoMetadata} from "@remotion/media-utils";
 
 // Compositions
 import {ShowcaseComposition} from "./compositions/Showcase";
+import {YoutubeShortEdit, ASSET_PATHS} from "./compositions/YoutubeShortEdit";
+import {buildTimeline} from "./utils/buildTimeline";
 
 // Social templates
 import {TikTokVideo} from "./templates/social/TikTokVideo";
@@ -160,6 +163,40 @@ export const RemotionRoot: React.FC = () => {
             clipEndSeconds: 30,
             showCaptions: true,
             captionPreset: "bold" as const,
+          }}
+        />
+        <Composition
+          id="YoutubeShortEdit"
+          component={YoutubeShortEdit}
+          defaultProps={{clips: [], mainFrames: 0, endscreenFrames: 0, transitionFrames: 45}}
+          calculateMetadata={async () => {
+            const fps = 30;
+            const transitionFrames = 45; // TRANSITION_PRESETS.fadeSlow
+
+            const [silence, typing, endscreenMeta] = await Promise.all([
+              fetch(staticFile("silence.json")).then((r) => r.json()),
+              fetch(staticFile("typing.json")).then((r) => r.json()),
+              getVideoMetadata(ASSET_PATHS.endscreen),
+            ]);
+
+            const {clips, totalFrames: mainFrames} = buildTimeline({
+              speechSegments: silence.speechSegments,
+              typingSegments: typing.typingSegments,
+              fps,
+              padding: 0.1,
+              speakerVolume: 1.6,
+              typingSpeed: 4,
+            });
+
+            const endscreenFrames = Math.round(endscreenMeta.durationInSeconds * fps);
+
+            return {
+              fps,
+              width: 1080,
+              height: 1920,
+              durationInFrames: mainFrames + endscreenFrames - transitionFrames,
+              props: {clips, mainFrames, endscreenFrames, transitionFrames},
+            };
           }}
         />
       </Folder>

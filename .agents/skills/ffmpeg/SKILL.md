@@ -220,6 +220,28 @@ for f in assets/*.gif; do
 done
 ```
 
+## Pipeline Analysis Tools
+
+Beyond raw FFmpeg commands, this project has reusable analysis scripts under `scripts/` (see `CLAUDE.md`'s Pipeline Scripts table). One worth knowing about:
+
+### `scripts/export-silence-frames.ts` — sample thumbnails from the quiet parts of a video
+
+General-purpose, not tied to any one use case: exports one low-res frame per second across a video's silent stretches, so an agent (or human) can eyeball them and decide what's happening — e.g. is the speaker typing on-screen, changing a slide, showing a product, or just pausing. Reads `public/silence.json` (from `detect-silence.ts`) to know where the silences are; falls back to the whole video if that file is missing.
+
+```bash
+npx tsx scripts/detect-silence.ts public/assets/video.mp4          # -> public/silence.json
+npx tsx scripts/export-silence-frames.ts public/assets/video.mp4   # -> public/silence-frames/*.png + manifest.json
+```
+
+Args: `[everySec=1] [width=320] [outDir=public/silence-frames]`. Output: `<outDir>/manifest.json` -> `[{file, timeSeconds}]`, sorted by time.
+
+Then **read the exported frames** (e.g. with the Read tool) and classify each timestamp by eye — no ML/heuristic scoring needed, an agent's vision is more reliable than threshold-tuning an edge-detector. Write the resulting ranges to a JSON file (e.g. `public/typing.json`) and feed it into whatever timeline-assembly logic needs it — see `src/utils/buildTimeline.ts` in this project for an example that combines `speechSegments` (from `detect-silence.ts`) and a manually-labeled range file to build a mixed-speed jump-cut timeline (speech at 1x, labeled stretches at 4x + muted, everything else cut).
+
+**Gotchas learned building this (this project's bundled Remotion ffmpeg is a minimal build):**
+- **No `fps` or `crop` filter** — only a small allow-list survives (`scale`, `colorspace`, a handful of audio filters). Run `npx remotion ffmpeg -filters` to see what's actually compiled in before reaching for `-vf`. Workaround used here: seek + grab exactly one frame at a time (`-ss <t> -frames:v 1 -vf scale=<w>:-2`) instead of `-vf fps=N`.
+- **`-f null -` fails** on this build with "Automatic encoder selection failed... codec wrapped_avframe" unless you also pass `-vn` (audio-only analysis, e.g. `silencedetect`). Always pair `-f null -` with `-vn` when you don't need video output.
+- **`r_frame_rate` can lie** — on some phone recordings it reports the container's `tbr` (e.g. `90000/1`, i.e. 90000fps) instead of the real frame rate. Don't do per-frame math against it; prefer `avg_frame_rate`, or better, avoid needing native fps at all (seek-based sampling sidesteps it entirely).
+
 ## Common Issues
 
 ### "Height not divisible by 2"

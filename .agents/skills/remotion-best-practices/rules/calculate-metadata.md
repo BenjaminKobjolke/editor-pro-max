@@ -132,3 +132,12 @@ All fields are optional. Returned values override the `<Composition>` props:
 - `props`: Transformed props passed to the component
 - `defaultOutName`: Default output filename
 - `defaultCodec`: Default codec for rendering
+
+## Gotcha: shared utils get bundled for the browser too
+
+`Root.tsx` (and anything it imports, including helper modules used only inside `calculateMetadata`) is bundled with webpack for **both** the Remotion Studio preview (browser) and rendering. If a utility module used by `calculateMetadata` or the component tree happens to reference a Node built-in - `assert`, `process`, `fs`, etc. - even just inside a CLI-only code path (e.g. a `--self-check` block meant to be run standalone with `tsx`), the Studio bundle fails at runtime with an unhelpful error like `Cannot read properties of undefined (reading 'includes')` (from an unguarded `process.argv.includes(...)`) or a webpack module-resolution error for `assert`.
+
+Fixes:
+- Don't import Node's `assert` in a file that's also imported by `Root.tsx` / a composition - write a tiny local assert helper instead.
+- Guard any `process`-based CLI entry point: `if (typeof process !== "undefined" && process.argv?.includes("--self-check")) { ... }`.
+- If a module is genuinely CLI-only, keep it a standalone script (e.g. under `scripts/`) rather than importing it from `src/`.

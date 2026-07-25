@@ -381,7 +381,7 @@ const colors = useColorScheme("dark"); // colors.bg, colors.text, colors.accent
 
 ## Agent Skills
 
-This project has 8 specialized skills installed. They provide deep domain knowledge — use them when relevant:
+This project has 9 specialized skills installed. They provide deep domain knowledge — use them when relevant:
 
 | Skill | When to use |
 |---|---|
@@ -393,6 +393,7 @@ This project has 8 specialized skills installed. They provide deep domain knowle
 | **explainer-video-guide** | Creating explainer or educational videos — structure, scripting, pacing |
 | **remotion-render** | Programmatic rendering pipelines and advanced render configuration |
 | **playwright-mcp** | Browsing the web for visual references, style inspiration, screenshots of websites |
+| **summera-youtube-shorts** | Turning a raw talking-head recording into a Short — silence-cut, sped-up typing, endscreen crossfade, ducked/swelling music |
 
 ### Browsing for Visual References
 
@@ -428,7 +429,10 @@ npx tsx scripts/analyze-video.ts public/assets/video.mp4    # → public/video-m
 npx tsx scripts/extract-audio.ts public/assets/video.mp4    # → public/assets/audio.wav
 npx tsx scripts/transcribe.ts                                # → public/captions.json (word-level)
 npx tsx scripts/detect-silence.ts public/assets/video.mp4   # → public/silence.json
+npx tsx scripts/export-silence-frames.ts public/assets/video.mp4  # → public/silence-frames/*.png + manifest.json
 ```
+
+`export-silence-frames.ts` samples one low-res thumbnail per second across the silent stretches (needs `silence.json` first). Read the frames and classify each timestamp by eye to tell apart e.g. on-screen typing vs. a genuine pause — no ML/heuristic needed. Feed the resulting ranges into `src/utils/buildTimeline.ts`-style logic to build a mixed-speed jump-cut (speech at 1x, labeled stretches at a different speed, everything else cut). See the ffmpeg skill for the gotchas found doing this (no `fps`/`crop` filter in this project's bundled ffmpeg, `-vn` needed for `-f null -`, `r_frame_rate` can be bogus).
 
 ### Step 3: Create composition using editing components/templates
 
@@ -569,6 +573,7 @@ const data = useSilenceSegments("silence.json");
 | `scripts/extract-audio.ts` | video path | `public/assets/audio.wav` | 16kHz WAV for Whisper |
 | `scripts/transcribe.ts` | audio.wav | `public/captions.json` | Word-level transcription |
 | `scripts/detect-silence.ts` | video path | `public/silence.json` | Find speech/silence segments |
+| `scripts/export-silence-frames.ts` | video path (+ `silence.json`) | `public/silence-frames/*.png` + `manifest.json` | Sample 1 frame/sec across silences, for visual classification |
 | `scripts/remove-bg.ts` | image path | `*-nobg.png` | AI background removal |
 
 ## Editing Utilities (`src/utils/editing.ts`)
