@@ -10,6 +10,9 @@ dist/
 *.mov
 *.gif
 
+# Local planning artifacts
+claude-plans/
+
 # Agent configs (created by skills installer for other AI tools)
 .codebuddy/
 .commandcode/
