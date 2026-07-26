@@ -419,28 +419,66 @@ Use the playwright-mcp skill to browse the web, take screenshots, and extract vi
 ## Video Editing Workflow
 
 Edit existing videos by running the pipeline, then creating a composition.
+Every video gets its own **project** folder — `public/projects/<slug>/` —
+so each video's derived data (silence.json, typing.json, captions.json,
+audio.wav, ...) stays isolated instead of clobbering a shared `public/*.json`
+file when a second video is processed.
 
-### Step 1: Place video in project
-Copy your video to `public/assets/video.mp4`
+### Step 1: Create the project
+Drop the raw video in `public/assets/<name>.mp4`, then:
+```bash
+npx tsx scripts/new-project.ts public/assets/<name>.mp4
+```
+Moves it to `public/projects/<name>/source/<name>.mp4` (slug = filename
+without extension) and regenerates `src/generated/projects.ts`, which is
+what makes the video appear as a Composition under the **Projects** folder
+in Studio (`npm run dev`). Prints the exact next commands with the new path
+filled in.
 
 ### Step 2: Run the pipeline
 ```bash
-npx tsx scripts/analyze-video.ts public/assets/video.mp4    # → public/video-metadata.json
-npx tsx scripts/extract-audio.ts public/assets/video.mp4    # → public/assets/audio.wav
-npx tsx scripts/transcribe.ts                                # → public/captions.json (word-level)
-npx tsx scripts/detect-silence.ts public/assets/video.mp4   # → public/silence.json
-npx tsx scripts/export-silence-frames.ts public/assets/video.mp4  # → public/silence-frames/*.png + manifest.json
+npx tsx scripts/analyze-video.ts public/projects/<slug>/source/<name>.mp4    # → public/projects/<slug>/video-metadata.json
+npx tsx scripts/extract-audio.ts public/projects/<slug>/source/<name>.mp4    # → public/projects/<slug>/audio.wav
+npx tsx scripts/transcribe.ts public/projects/<slug>/audio.wav              # → public/projects/<slug>/captions.json (word-level)
+npx tsx scripts/detect-silence.ts public/projects/<slug>/source/<name>.mp4  # → public/projects/<slug>/silence.json
+npx tsx scripts/export-silence-frames.ts public/projects/<slug>/source/<name>.mp4  # → public/projects/<slug>/silence-frames/*.png + manifest.json
 ```
 
 `export-silence-frames.ts` samples one low-res thumbnail per second across the silent stretches (needs `silence.json` first). Read the frames and classify each timestamp by eye to tell apart e.g. on-screen typing vs. a genuine pause — no ML/heuristic needed. Feed the resulting ranges into `src/utils/buildTimeline.ts`-style logic to build a mixed-speed jump-cut (speech at 1x, labeled stretches at a different speed, everything else cut). See the ffmpeg skill for the gotchas found doing this (no `fps`/`crop` filter in this project's bundled ffmpeg, `-vn` needed for `-f null -`, `r_frame_rate` can be bogus).
 
+Replacing a video's footage later (same slug, new file dropped in
+`source/`)? Just rerun step 2 — it always overwrites the same
+project-scoped files, nothing to clean up first.
+
+### Step 2b: Generate the editable timeline (optional, for manual trim/reorder/delete/split)
+After `silence.json` and `typing.json` both exist:
+```bash
+npx tsx scripts/build-timeline.ts public/projects/<slug>/source/<name>.mp4  # → public/projects/<slug>/timeline.json
+```
+`timeline.json` holds the ordered clip list (`{id, label, startSeconds,
+endSeconds, playbackRate, muted, volume}`). Once it exists, `Root.tsx`'s
+Projects composition renders it instead of re-deriving the cut — so editing
+the actual video is editing this file directly (by hand or by asking Claude):
+- **Trim** a clip → change its `startSeconds`/`endSeconds`
+- **Move/reorder** → reorder entries in the `clips` array (order is playback order)
+- **Delete** → remove an entry
+- **Split** → duplicate an entry into two, each covering part of the original range
+Delete `timeline.json` to fall back to the auto-generated cut again.
+
 ### Step 3: Create composition using editing components/templates
+For the Summera-style silence-cut + typing-speedup + endscreen-crossfade
+edit, `src/compositions/YoutubeShortEdit.tsx` + `src/Root.tsx`'s generated
+`Projects` folder already do this per project automatically — see the
+**summera-youtube-shorts** skill. `TalkingHeadEdit`/`PodcastClip` below are
+separate, simpler templates that take a raw `videoSrc` directly.
 
 ### Step 4: Preview and render
 ```bash
-npm run dev                                    # Preview in Studio
-npx remotion render TalkingHeadEdit out/edited.mp4  # Export
+npm run dev                                    # Preview in Studio — project shows up under "Projects"
+npx remotion render <CompositionId> out/edited.mp4  # Export (id shown by `npx remotion compositions`)
 ```
+Or double-click `render_project.bat` (repo root) — picks a project from a
+menu and renders it to `out/<slug>.mp4` (`scripts/render-project.ts`).
 
 ## Editing Components
 
@@ -567,14 +605,22 @@ const data = useSilenceSegments("silence.json");
 
 ## Pipeline Scripts
 
+All project-pipeline scripts take a path under `public/projects/<slug>/...`
+and write their output into that same project folder — see `scripts/lib/
+projectPaths.ts`. `new-project.ts` and `sync-projects.ts` are the exception:
+they manage the project folder itself and the Studio registry.
+
 | Script | Input | Output | Purpose |
 |---|---|---|---|
-| `scripts/analyze-video.ts` | video path | `public/video-metadata.json` | Extract duration, fps, dimensions |
-| `scripts/extract-audio.ts` | video path | `public/assets/audio.wav` | 16kHz WAV for Whisper |
-| `scripts/transcribe.ts` | audio.wav | `public/captions.json` | Word-level transcription |
-| `scripts/detect-silence.ts` | video path | `public/silence.json` | Find speech/silence segments |
-| `scripts/export-silence-frames.ts` | video path (+ `silence.json`) | `public/silence-frames/*.png` + `manifest.json` | Sample 1 frame/sec across silences, for visual classification |
-| `scripts/remove-bg.ts` | image path | `*-nobg.png` | AI background removal |
+| `scripts/new-project.ts` | `public/assets/<name>.mp4` | `public/projects/<name>/source/<name>.mp4` + `src/generated/projects.ts` | Create a project, register it in Studio |
+| `scripts/sync-projects.ts` | (none) | `src/generated/projects.ts` | Rescan `public/projects/` and regenerate the registry |
+| `scripts/analyze-video.ts` | `public/projects/<slug>/source/video.mp4` | `public/projects/<slug>/video-metadata.json` | Extract duration, fps, dimensions |
+| `scripts/extract-audio.ts` | `public/projects/<slug>/source/video.mp4` | `public/projects/<slug>/audio.wav` | 16kHz WAV for Whisper |
+| `scripts/transcribe.ts` | `public/projects/<slug>/audio.wav` | `public/projects/<slug>/captions.json` | Word-level transcription |
+| `scripts/detect-silence.ts` | `public/projects/<slug>/source/video.mp4` | `public/projects/<slug>/silence.json` | Find speech/silence segments |
+| `scripts/export-silence-frames.ts` | `public/projects/<slug>/source/video.mp4` (+ `silence.json`) | `public/projects/<slug>/silence-frames/*.png` + `manifest.json` | Sample 1 frame/sec across silences, for visual classification |
+| `scripts/build-timeline.ts` | `public/projects/<slug>/source/video.mp4` (+ `silence.json` + `typing.json`) | `public/projects/<slug>/timeline.json` | Generate the hand-editable clip list (trim/reorder/delete/split) |
+| `scripts/remove-bg.ts` | image path | `*-nobg.png` | AI background removal (not project-scoped) |
 
 ## Editing Utilities (`src/utils/editing.ts`)
 

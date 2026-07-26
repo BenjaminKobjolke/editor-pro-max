@@ -11,38 +11,57 @@ End-to-end recipe for turning a raw talking-head recording into a polished
 YouTube Short: silence removed, on-screen stretches (typing, app switching,
 loading) kept but sped up and muted, crossfade into a branded endscreen,
 background music quiet under the speaker and swelling once the endscreen
-takes over. Built once for `public/assets/20260724_youtube_posts.mp4` ->
+takes over. Built once for `20260724_youtube_posts.mp4` ->
 `src/compositions/YoutubeShortEdit.tsx`; reuse the same pattern for the next
 video rather than reinventing it.
 
+Every video is a **project**: `public/projects/<slug>/`. This keeps each
+video's `silence.json`/`typing.json`/frames isolated - the old scheme wrote
+everything to shared `public/silence.json`, which silently clobbered one
+video's data whenever the pipeline ran on another.
+
 ## Inputs
 
-- `public/assets/<main>.mp4` - the talking-head recording. May contain
-  stretches where the speaker is silent and doing something on-screen
-  (typing, scrolling, waiting for a page to load).
-- `public/assets/<endscreen>.mp4` - a short branded outro clip, crossfaded
-  in at the end. Typically muted (music carries it).
-- A music bed (mp3), referenced via `staticFile`.
+- The raw talking-head recording, dropped in `public/assets/<file>.mp4` by
+  the user. May contain stretches where the speaker is silent and doing
+  something on-screen (typing, scrolling, waiting for a page to load).
+- `public/assets/endscreen.mp4` - shared branded outro clip, crossfaded in
+  at the end. Typically muted (music carries it).
+- A shared music bed (mp3) in `public/assets/`, referenced via `staticFile`.
+
+Endscreen and music are shared across projects (`ASSET_PATHS` in
+`YoutubeShortEdit.tsx`); only the main recording is project-scoped.
 
 ## Pipeline
 
+0. **Create the project**
+   ```bash
+   npx tsx scripts/new-project.ts public/assets/<main>.mp4
+   ```
+   Moves the video to `public/projects/<slug>/source/<main>.mp4` (slug =
+   filename without extension) and regenerates `src/generated/projects.ts`,
+   which is what makes the video show up as a Composition under the
+   **Projects** folder in Studio (`npm run dev`). Prints the exact next
+   commands with the new path filled in.
+
 1. **Silence detection**
    ```bash
-   npx tsx scripts/detect-silence.ts public/assets/<main>.mp4
+   npx tsx scripts/detect-silence.ts public/projects/<slug>/source/<main>.mp4
    ```
-   -> `public/silence.json`: `speechSegments`, `silenceSegments`
-   (`{start,end}` in seconds), `totalDuration`. Tune `noiseDb`/`minDuration`
-   args if it over/under-cuts.
+   -> `public/projects/<slug>/silence.json`: `speechSegments`,
+   `silenceSegments` (`{start,end}` in seconds), `totalDuration`. Tune
+   `noiseDb`/`minDuration` args if it over/under-cuts.
 
 2. **Export one frame/sec across the silences**
    ```bash
-   npx tsx scripts/export-silence-frames.ts public/assets/<main>.mp4
+   npx tsx scripts/export-silence-frames.ts public/projects/<slug>/source/<main>.mp4
    ```
-   -> `public/silence-frames/*.png` + `manifest.json`. General tool, not
-   typing-specific - see the **ffmpeg** skill for what it does and why (no
-   ML/heuristic scoring, just samples frames for a human/agent to look at).
+   -> `public/projects/<slug>/silence-frames/*.png` + `manifest.json`.
+   General tool, not typing-specific - see the **ffmpeg** skill for what it
+   does and why (no ML/heuristic scoring, just samples frames for a
+   human/agent to look at).
 
-3. **Classify by eye, write `public/typing.json`**
+3. **Classify by eye, write `public/projects/<slug>/typing.json`**
    Read the exported frames (Read tool renders images). For each silence
    segment, decide: is something worth keeping-but-speeding-up visible
    (keyboard, app UI, loading spinner), or is it just a dead pause?
@@ -56,7 +75,7 @@ video rather than reinventing it.
    ```json
    {
      "typingSegments": [{"start": 27.06, "end": 28.08}, ...],
-     "source": "public/assets/<main>.mp4",
+     "source": "public/projects/<slug>/source/<main>.mp4",
      "labeledBy": "claude-vision",
      "notes": "why each boundary was placed where it was"
    }
@@ -64,6 +83,10 @@ video rather than reinventing it.
    Don't chase sub-second precision by extracting more ad-hoc frames -
    1 frame/sec is enough; `buildTimeline`'s speech-wins overlap trimming
    absorbs small misalignments.
+
+   Re-running the pipeline on a **replaced** video (same slug, new footage)
+   just means redoing steps 1-3 - they always overwrite the same
+   project-scoped files, so there's nothing to clean up first.
 
 4. **Build the timeline**
    `src/utils/buildTimeline.ts` merges `speechSegments` + `typingSegments`
@@ -76,11 +99,11 @@ video rather than reinventing it.
    Has a `--self-check` (`npx tsx src/utils/buildTimeline.ts --self-check`)
    - run it after touching the merge/trim logic.
 
-5. **Composition** - use `src/compositions/YoutubeShortEdit.tsx` as the
-   template:
-   - `<TransitionSeries>`: `SegmentedClip` (main, cut+sped timeline) ->
-     `TransitionSeries.Transition` (crossfade, e.g.
-     `TRANSITION_PRESETS.fadeSlow`) -> `VideoClip` (endscreen, muted).
+5. **Composition** - `src/compositions/YoutubeShortEdit.tsx` is a shared,
+   generic component reused by every project (no per-video `.tsx` files):
+   - `<TransitionSeries>`: `SegmentedClip` (main, cut+sped timeline, driven
+     by the `mainSrc` prop) -> `TransitionSeries.Transition` (crossfade,
+     e.g. `TRANSITION_PRESETS.fadeSlow`) -> `VideoClip` (endscreen, muted).
    - `SegmentedClip` (`src/components/media/SegmentedClip.tsx`) is a
      per-clip-speed/mute generalization of `JumpCut` - renders a `<Series>`
      of `VideoClip`s from the `buildTimeline` output.
@@ -96,19 +119,38 @@ video rather than reinventing it.
      frame-keyed volume curve silently desyncs if the source loops with the
      default `"repeat"` behavior.
 
-6. **Register in `Root.tsx`** with `calculateMetadata`: fetch
-   `silence.json` + `typing.json` (`fetch(staticFile(...))`), get the
-   endscreen's duration (`getVideoMetadata` from `@remotion/media-utils`),
-   run `buildTimeline` to get `mainFrames`, and return
-   `durationInFrames: mainFrames + endscreenFrames - transitionFrames`. See
-   the **remotion-best-practices** `calculate-metadata.md` gotcha about
-   Node builtins (`assert`, `process`) breaking the Studio's browser bundle
-   if a utility file like `buildTimeline.ts` isn't guarded.
+6. **Registration is automatic.** `src/Root.tsx` maps over
+   `PROJECTS` from `src/generated/projects.ts` (regenerated by
+   `new-project.ts` / `scripts/sync-projects.ts`) and renders one
+   `<Composition>` per project under a **Projects** `<Folder>`, each with
+   its own `calculateMetadata`: fetches
+   `projects/<slug>/silence.json` + `projects/<slug>/typing.json`
+   (`fetch(staticFile(...))`), gets the endscreen's duration
+   (`getVideoMetadata` from `@remotion/media-utils`), runs `buildTimeline`
+   to get `mainFrames`, and returns
+   `durationInFrames: mainFrames + endscreenFrames - transitionFrames`. No
+   manual `<Composition>` block to hand-write per video anymore - if a
+   project doesn't show up in Studio, it's because `new-project.ts`/
+   `sync-projects.ts` hasn't been run since the folder was added. See the
+   **remotion-best-practices** `calculate-metadata.md` gotcha about Node
+   builtins (`assert`, `process`) breaking the Studio's browser bundle if a
+   utility file like `buildTimeline.ts` isn't guarded - the same applies to
+   `scripts/lib/projectPaths.ts` and `projectsRegistry.ts`, which is why
+   those stay Node-only scripts, never imported into `Root.tsx` directly
+   (only their generated output, `src/generated/projects.ts`, a plain data
+   file, is imported).
+
+   Composition `id`s are PascalCase, derived from the slug with leading
+   date-like numeric tokens dropped (e.g. `20260725_german_rap_sido` ->
+   `GermanRapSido`) - see `slugToPascalCase` in
+   `scripts/lib/projectsRegistry.ts`.
 
 ## Tunable constants
 
 - `buildTimeline` call (in `Root.tsx`'s `calculateMetadata`): `padding`
   (per-clip head/tail padding, seconds), `speakerVolume`, `typingSpeed`.
+  Same defaults for every project (0.1, 1.6, 4) - special-case in
+  `Root.tsx` if one project needs different tuning.
 - `YoutubeShortEdit.tsx`: `MUSIC_QUIET`, `MUSIC_LOUD`,
   `MUSIC_FADE_OUT_SECONDS`. The swell window reuses `transitionFrames` so
   the audio and video transitions stay in sync automatically.
@@ -123,12 +165,13 @@ video rather than reinventing it.
    `manifest.json` frame count looks right for the video length.
 2. `npx tsx src/utils/buildTimeline.ts --self-check`
 3. `npx tsc --noEmit`
-4. `npx remotion compositions` - confirms `calculateMetadata` resolves
-   without a runtime bundling error and prints a sane duration.
-5. `npm run dev` -> Studio -> eyeball the cut points, typing speedup, and
-   music swell.
-6. `npx remotion render YoutubeShortEdit out/short.mp4` then
-   `npx remotion ffprobe -show_entries format=duration -show_entries
+4. `npx remotion compositions` - confirms every project's
+   `calculateMetadata` resolves without a runtime bundling error and prints
+   a sane duration under its generated composition id.
+5. `npm run dev` -> Studio -> open the project under the **Projects**
+   folder, eyeball the cut points, typing speedup, and music swell.
+6. `npx remotion render <CompositionId> out/short.mp4` (id from step 4)
+   then `npx remotion ffprobe -show_entries format=duration -show_entries
    stream=width,height,codec_type out/short.mp4` to confirm dimensions,
    duration, and that both video+audio streams are present.
 

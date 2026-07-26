@@ -1,12 +1,13 @@
 #!/usr/bin/env npx tsx
 /**
  * Analyze a video file and extract metadata.
- * Usage: npx tsx scripts/analyze-video.ts public/assets/video.mp4
- * Output: public/video-metadata.json
+ * Usage: npx tsx scripts/analyze-video.ts public/projects/<slug>/source/video.mp4
+ * Output: public/projects/<slug>/video-metadata.json
  */
 import {execSync} from "child_process";
 import {writeFileSync} from "fs";
 import path from "path";
+import {projectDirFromPath} from "./lib/projectPaths";
 
 const inputPath = process.argv[2];
 if (!inputPath) {
@@ -38,7 +39,7 @@ const metadata = {
   hasAudio: !!audioStream,
 };
 
-const outputPath = path.join("public", "video-metadata.json");
+const outputPath = path.join(projectDirFromPath(inputPath), "video-metadata.json");
 writeFileSync(outputPath, JSON.stringify(metadata, null, 2));
 
 console.log(`Metadata saved to ${outputPath}`);

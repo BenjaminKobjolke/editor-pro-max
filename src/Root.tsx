@@ -4,7 +4,10 @@ import {getVideoMetadata} from "@remotion/media-utils";
 // Compositions
 import {ShowcaseComposition} from "./compositions/Showcase";
 import {YoutubeShortEdit, ASSET_PATHS} from "./compositions/YoutubeShortEdit";
-import {buildTimeline} from "./utils/buildTimeline";
+import {buildTimeline, clipsTotalFrames} from "./utils/buildTimeline";
+import type {Clip} from "./utils/buildTimeline";
+import {PROJECTS} from "./generated/projects";
+import {YoutubeShortEditSchema} from "./schemas/youtubeShortEdit.schema";
 
 // Social templates
 import {TikTokVideo} from "./templates/social/TikTokVideo";
@@ -165,40 +168,82 @@ export const RemotionRoot: React.FC = () => {
             captionPreset: "bold" as const,
           }}
         />
-        <Composition
-          id="YoutubeShortEdit"
-          component={YoutubeShortEdit}
-          defaultProps={{clips: [], mainFrames: 0, endscreenFrames: 0, transitionFrames: 45}}
-          calculateMetadata={async () => {
-            const fps = 30;
-            const transitionFrames = 45; // TRANSITION_PRESETS.fadeSlow
+      </Folder>
 
-            const [silence, typing, endscreenMeta] = await Promise.all([
-              fetch(staticFile("silence.json")).then((r) => r.json()),
-              fetch(staticFile("typing.json")).then((r) => r.json()),
-              getVideoMetadata(ASSET_PATHS.endscreen),
-            ]);
-
-            const {clips, totalFrames: mainFrames} = buildTimeline({
-              speechSegments: silence.speechSegments,
-              typingSegments: typing.typingSegments,
-              fps,
-              padding: 0.1,
-              speakerVolume: 1.6,
+      <Folder name="Projects">
+        {PROJECTS.map((project) => (
+          <Composition
+            key={project.slug}
+            id={project.compositionId}
+            component={YoutubeShortEdit}
+            schema={YoutubeShortEditSchema}
+            defaultProps={{
               typingSpeed: 4,
-            });
+              speakerVolume: 1.6,
+              padding: 0.1,
+              transitionFrames: 45,
+              musicQuiet: 0.04,
+              musicLoud: 0.45,
+              musicFadeOutSeconds: 1.5,
+              backgroundColor: "#000000",
+            }}
+            calculateMetadata={async ({props}) => {
+              const fps = 30;
+              const transitionFrames = props.transitionFrames ?? 45;
+              const mainSrc = staticFile(project.mainSrc);
 
-            const endscreenFrames = Math.round(endscreenMeta.durationInSeconds * fps);
+              // timeline.json (written by scripts/build-timeline.ts) is the hand-editable
+              // cut - trim/reorder/delete/split live there. Missing/invalid -> fall back
+              // to the auto-generated cut from silence.json + typing.json.
+              const fetchTimeline = async (): Promise<Clip[] | null> => {
+                try {
+                  const res = await fetch(staticFile(`projects/${project.slug}/timeline.json`));
+                  if (!res.ok) return null;
+                  const data = await res.json();
+                  return Array.isArray(data.clips) && data.clips.length > 0 ? data.clips : null;
+                } catch {
+                  return null;
+                }
+              };
 
-            return {
-              fps,
-              width: 1080,
-              height: 1920,
-              durationInFrames: mainFrames + endscreenFrames - transitionFrames,
-              props: {clips, mainFrames, endscreenFrames, transitionFrames},
-            };
-          }}
-        />
+              const [timelineClips, endscreenMeta] = await Promise.all([
+                fetchTimeline(),
+                getVideoMetadata(ASSET_PATHS.endscreen),
+              ]);
+
+              let clips: Clip[];
+              let mainFrames: number;
+              if (timelineClips) {
+                clips = timelineClips;
+                mainFrames = clipsTotalFrames(clips, fps);
+              } else {
+                const [silence, typing] = await Promise.all([
+                  fetch(staticFile(`projects/${project.slug}/silence.json`)).then((r) => r.json()),
+                  fetch(staticFile(`projects/${project.slug}/typing.json`)).then((r) => r.json()),
+                ]);
+                ({clips, totalFrames: mainFrames} = buildTimeline({
+                  speechSegments: silence.speechSegments,
+                  typingSegments: typing.typingSegments,
+                  fps,
+                  padding: props.padding,
+                  speakerVolume: props.speakerVolume,
+                  typingSpeed: props.typingSpeed,
+                }));
+              }
+              mainFrames = Math.max(1, mainFrames);
+
+              const endscreenFrames = Math.round(endscreenMeta.durationInSeconds * fps);
+
+              return {
+                fps,
+                width: 1080,
+                height: 1920,
+                durationInFrames: mainFrames + endscreenFrames - transitionFrames,
+                props: {...props, clips, mainFrames, endscreenFrames, mainSrc},
+              };
+            }}
+          />
+        ))}
       </Folder>
     </>
   );

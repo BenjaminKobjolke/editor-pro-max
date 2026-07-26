@@ -1,11 +1,12 @@
 #!/usr/bin/env npx tsx
 /**
  * Extract audio from video as 16kHz WAV for Whisper transcription.
- * Usage: npx tsx scripts/extract-audio.ts public/assets/video.mp4
- * Output: public/assets/audio.wav
+ * Usage: npx tsx scripts/extract-audio.ts public/projects/<slug>/source/video.mp4
+ * Output: public/projects/<slug>/audio.wav
  */
 import {execSync} from "child_process";
 import path from "path";
+import {projectDirFromPath} from "./lib/projectPaths";
 
 const inputPath = process.argv[2];
 if (!inputPath) {
@@ -13,7 +14,7 @@ if (!inputPath) {
   process.exit(1);
 }
 
-const outputPath = path.join("public", "assets", "audio.wav");
+const outputPath = path.join(projectDirFromPath(inputPath), "audio.wav");
 
 console.log(`Extracting audio from: ${inputPath}`);
 console.log(`Output: ${outputPath}`);

@@ -1,16 +1,21 @@
 #!/usr/bin/env npx tsx
 /**
  * Transcribe audio using Whisper.cpp with word-level timestamps.
- * Usage: npx tsx scripts/transcribe.ts [audio-path]
- * Default audio: public/assets/audio.wav
- * Output: public/captions.json
+ * Usage: npx tsx scripts/transcribe.ts public/projects/<slug>/audio.wav
+ * Output: public/projects/<slug>/captions.json
  */
 import path from "path";
 import {writeFileSync, existsSync} from "fs";
+import {projectDirFromPath} from "./lib/projectPaths";
 
-const inputPath = process.argv[2] || path.join("public", "assets", "audio.wav");
+const inputPath = process.argv[2];
+if (!inputPath) {
+  console.error("Usage: npx tsx scripts/transcribe.ts public/projects/<slug>/audio.wav");
+  console.error("Run extract-audio.ts first.");
+  process.exit(1);
+}
 const whisperPath = path.join(process.cwd(), "whisper.cpp");
-const outputPath = path.join("public", "captions.json");
+const outputPath = path.join(projectDirFromPath(inputPath), "captions.json");
 
 if (!existsSync(inputPath)) {
   console.error(`Audio file not found: ${inputPath}`);

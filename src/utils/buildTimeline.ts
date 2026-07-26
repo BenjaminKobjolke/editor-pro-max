@@ -61,6 +61,10 @@ const subtractIntervals = (segment: TimeSegment, blockers: TimeSegment[]): TimeS
 const displayFrames = (durationSeconds: number, playbackRate: number, fps: number): number =>
   Math.round((durationSeconds / playbackRate) * fps);
 
+/** Sum of on-screen frames for a clip list - same rate-aware formula SegmentedClip uses per-clip. */
+export const clipsTotalFrames = (clips: Clip[], fps: number): number =>
+  clips.reduce((sum, c) => sum + displayFrames(c.endSeconds - c.startSeconds, c.playbackRate, fps), 0);
+
 export const buildTimeline = (opts: BuildTimelineOptions): TimelineResult => {
   const {speechSegments, typingSegments, fps, padding = 0, speakerVolume = 1, typingSpeed = 4} = opts;
 
@@ -83,10 +87,7 @@ export const buildTimeline = (opts: BuildTimelineOptions): TimelineResult => {
     volume: s.volume,
   }));
 
-  const totalFrames = clips.reduce(
-    (sum, c) => sum + displayFrames(c.endSeconds - c.startSeconds, c.playbackRate, fps),
-    0,
-  );
+  const totalFrames = clipsTotalFrames(clips, fps);
 
   return {clips, totalFrames};
 };
@@ -125,6 +126,9 @@ const demo = () => {
   const typingFrames = displayFrames(1, 4, fps);
   assert.strictEqual(speechFrames, 60);
   assert.strictEqual(typingFrames, Math.round((1 / 4) * fps));
+
+  // clipsTotalFrames must agree with buildTimeline's own totalFrames for the same clip list.
+  assert.strictEqual(clipsTotalFrames(result.clips, fps), result.totalFrames);
 
   console.log("buildTimeline.ts self-check passed");
 };

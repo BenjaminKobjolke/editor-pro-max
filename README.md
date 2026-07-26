@@ -53,7 +53,7 @@ That's it. The `/start` command installs everything, verifies the build, and sho
 | Components | 25 | Text animations, backgrounds, overlays, media, layouts, transitions |
 | Templates | 10 | TikTok, Instagram, YouTube, Presentation, Testimonial, Announcement, BeforeAfter, TalkingHead, PodcastClip |
 | AI Skills | 7 | Remotion best practices, motion design, award-winning animations, FFmpeg |
-| Pipeline Scripts | 5 | Video analysis, audio extraction, Whisper transcription, silence detection, background removal |
+| Pipeline Scripts | 7 | Project setup, video analysis, audio extraction, Whisper transcription, silence detection, background removal |
 | Presets | 7 palettes, 8 gradients, 12 easings, 5 fonts, 9 platform dimensions |
 
 ### How It Works
@@ -74,13 +74,14 @@ YOU                          CLAUDE CODE                    REMOTION
 #### Path B: Edit existing video
 
 1. Place your video in `public/assets/video.mp4`
-2. Claude runs the pipeline:
+2. Claude creates a project for it (`npx tsx scripts/new-project.ts`), which moves it to its own `public/projects/<name>/` folder and lists it in Studio's **Projects** sidebar
+3. Claude runs the pipeline against that project:
    - `npx tsx scripts/analyze-video.ts` — extracts metadata
    - `npx tsx scripts/extract-audio.ts` — extracts audio for transcription
    - `npx tsx scripts/transcribe.ts` — Whisper AI generates word-level captions
    - `npx tsx scripts/detect-silence.ts` — finds dead air to cut
-3. Claude creates an edited composition (auto-captions, jump cuts, overlays)
-4. Preview and render
+4. Claude creates an edited composition (auto-captions, jump cuts, overlays)
+5. Preview and render — each project keeps its own data, so editing a second video never overwrites the first
 
 ### Templates
 
@@ -133,14 +134,18 @@ editor-pro-max/
 │   ├── utils/            Animation math, editing utilities
 │   ├── schemas/          Zod validation schemas
 │   ├── compositions/     Your video projects
-│   └── Root.tsx          Composition registry
+│   ├── generated/        projects.ts — auto-generated project registry
+│   └── Root.tsx          Composition registry (Projects folder built from generated registry)
 ├── scripts/              Pipeline scripts
+│   ├── new-project.ts    Move a video into public/projects/<name>/, register it
+│   ├── sync-projects.ts  Rescan public/projects/, regenerate the registry
 │   ├── analyze-video.ts  Extract video metadata
 │   ├── extract-audio.ts  Audio for Whisper
 │   ├── transcribe.ts     Whisper AI transcription
 │   ├── detect-silence.ts FFmpeg silence detection
 │   └── remove-bg.ts      AI background removal
-├── public/assets/        Your media files go here
+├── public/assets/        Drop new media files here
+├── public/projects/      One folder per edited video (source + pipeline output)
 ├── CLAUDE.md             Claude's video editing brain
 └── .claude/commands/     /start command
 ```
@@ -220,7 +225,7 @@ Eso es todo. El comando `/start` instala todo, verifica que funcione, y te muest
 | Componentes | 25 | Animaciones de texto, fondos, overlays, media, layouts, transiciones |
 | Templates | 10 | TikTok, Instagram, YouTube, Presentacion, Testimonio, Anuncio, Antes/Despues, TalkingHead, PodcastClip |
 | Skills de IA | 7 | Mejores practicas de Remotion, diseno de movimiento, animaciones premiadas, FFmpeg |
-| Scripts de Pipeline | 5 | Analisis de video, extraccion de audio, transcripcion Whisper, deteccion de silencio, remocion de fondo |
+| Scripts de Pipeline | 7 | Configuracion de proyecto, analisis de video, extraccion de audio, transcripcion Whisper, deteccion de silencio, remocion de fondo |
 | Presets | 7 paletas, 8 gradientes, 12 easings, 5 fuentes, 9 dimensiones de plataforma |
 
 ### Como Funciona
@@ -241,13 +246,14 @@ TU                              CLAUDE CODE                    REMOTION
 #### Ruta B: Editar video existente
 
 1. Coloca tu video en `public/assets/video.mp4`
-2. Claude ejecuta el pipeline:
+2. Claude crea un proyecto para el (`npx tsx scripts/new-project.ts`), que lo mueve a su propia carpeta `public/projects/<nombre>/` y lo lista en la barra lateral **Projects** de Studio
+3. Claude ejecuta el pipeline sobre ese proyecto:
    - `npx tsx scripts/analyze-video.ts` — extrae metadata
    - `npx tsx scripts/extract-audio.ts` — extrae audio para transcripcion
    - `npx tsx scripts/transcribe.ts` — Whisper AI genera subtitulos palabra por palabra
    - `npx tsx scripts/detect-silence.ts` — encuentra silencios para cortar
-3. Claude crea una composicion editada (subtitulos automaticos, jump cuts, overlays)
-4. Vista previa y renderizado
+4. Claude crea una composicion editada (subtitulos automaticos, jump cuts, overlays)
+5. Vista previa y renderizado — cada proyecto guarda sus propios datos, asi que editar un segundo video nunca sobrescribe el primero
 
 ### Templates
 

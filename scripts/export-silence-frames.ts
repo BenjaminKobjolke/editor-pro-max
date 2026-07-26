@@ -9,10 +9,10 @@
  * Usage: npx tsx scripts/export-silence-frames.ts <video-path> [everySec] [width] [outDir]
  *   everySec  seconds between sampled frames within a segment (default: 1)
  *   width     output frame width in px, scaled proportionally (default: 320)
- *   outDir    where frames + manifest.json go (default: public/silence-frames)
+ *   outDir    where frames + manifest.json go (default: public/projects/<slug>/silence-frames)
  *
- * Reads public/silence.json (see detect-silence.ts) for silenceSegments.
- * Falls back to scanning the whole video if it's missing.
+ * Reads public/projects/<slug>/silence.json (see detect-silence.ts) for
+ * silenceSegments. Falls back to scanning the whole video if it's missing.
  *
  * Output: <outDir>/f_<seconds>.png for each sampled timestamp, plus
  * <outDir>/manifest.json -> [{file, timeSeconds}], sorted by time.
@@ -29,6 +29,7 @@ import {execSync} from "child_process";
 import {writeFileSync, existsSync, readFileSync, mkdirSync} from "fs";
 import path from "path";
 import assert from "assert";
+import {projectDirFromPath} from "./lib/projectPaths";
 
 interface Segment {
   start: number;
@@ -76,19 +77,20 @@ if (!inputPath) {
   process.exit(1);
 }
 
+const projectDir = projectDirFromPath(inputPath);
 const everySec = parseFloat(process.argv[3] || "1");
 const width = parseInt(process.argv[4] || "320", 10);
-const outDir = process.argv[5] || path.join("public", "silence-frames");
+const outDir = process.argv[5] || path.join(projectDir, "silence-frames");
 
 console.log(`Exporting silence frames from: ${inputPath}`);
 console.log(`  Every ${everySec}s, width ${width}px, output ${outDir}`);
 
-const silencePath = path.join("public", "silence.json");
+const silencePath = path.join(projectDir, "silence.json");
 let segments: Segment[];
 if (existsSync(silencePath)) {
   const silence = JSON.parse(readFileSync(silencePath, "utf-8"));
   segments = (silence.silenceSegments || []).map((s: any) => ({start: s.start, end: s.end}));
-  console.log(`  Using ${segments.length} silence segment(s) from public/silence.json`);
+  console.log(`  Using ${segments.length} silence segment(s) from ${silencePath}`);
 } else {
   const probeCmd = `npx remotion ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`;
   const totalDuration = parseFloat(execSync(probeCmd, {encoding: "utf-8"}).trim());

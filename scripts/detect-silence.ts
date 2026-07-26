@@ -1,12 +1,13 @@
 #!/usr/bin/env npx tsx
 /**
  * Detect silence in a video/audio file using FFmpeg.
- * Usage: npx tsx scripts/detect-silence.ts public/assets/video.mp4 [noise-db] [min-duration]
- * Output: public/silence.json
+ * Usage: npx tsx scripts/detect-silence.ts public/projects/<slug>/source/video.mp4 [noise-db] [min-duration]
+ * Output: public/projects/<slug>/silence.json
  */
 import {execSync} from "child_process";
 import {writeFileSync} from "fs";
 import path from "path";
+import {projectDirFromPath} from "./lib/projectPaths";
 
 const inputPath = process.argv[2];
 const noiseDb = process.argv[3] || "-30dB";
@@ -80,7 +81,7 @@ const result = {
   silenceDuration: silenceSegments.reduce((sum, s) => sum + (s.end - s.start), 0),
 };
 
-const outputPath = path.join("public", "silence.json");
+const outputPath = path.join(projectDirFromPath(inputPath), "silence.json");
 writeFileSync(outputPath, JSON.stringify(result, null, 2));
 
 console.log(`\nResults saved to ${outputPath}`);
