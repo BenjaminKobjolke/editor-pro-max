@@ -36,3 +36,5 @@ claude-plans/
 .trae/
 .windsurf/
 .zencoder/
+out
+public
