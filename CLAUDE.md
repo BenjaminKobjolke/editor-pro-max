@@ -450,7 +450,10 @@ Replacing a video's footage later (same slug, new file dropped in
 `source/`)? Just rerun step 2 — it always overwrites the same
 project-scoped files, nothing to clean up first.
 
-### Step 2b: Generate the editable timeline (optional, for manual trim/reorder/delete/split)
+### Step 2b: Generate the editable timeline (always run, for manual trim/reorder/delete/split)
+Mandatory, not optional - it's the only place to hand-cut something that
+technically falls in silence/speech but shouldn't be in the final video
+(e.g. excising a transient in-app error message from a loading stretch).
 After `silence.json` and `typing.json` both exist:
 ```bash
 npx tsx scripts/build-timeline.ts public/projects/<slug>/source/<name>.mp4  # → public/projects/<slug>/timeline.json

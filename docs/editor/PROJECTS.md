@@ -145,7 +145,12 @@ npx tsx scripts/extract-audio.ts public/projects/<slug>/source/<file>.mp4
 npx tsx scripts/transcribe.ts public/projects/<slug>/audio.wav
 npx tsx scripts/detect-silence.ts public/projects/<slug>/source/<file>.mp4
 npx tsx scripts/export-silence-frames.ts public/projects/<slug>/source/<file>.mp4
+# (hand-classify typing.json from the exported frames, then:)
+npx tsx scripts/build-timeline.ts public/projects/<slug>/source/<file>.mp4
 ```
+
+`build-timeline.ts` is a mandatory last step, always run once `typing.json`
+exists — see "Editing the cut" below for why.
 
 Every script (except `remove-bg.ts`, not project-scoped) takes a path under
 `public/projects/<slug>/...` and writes its output into that same folder,
@@ -178,14 +183,24 @@ into one ordered, gap-free render timeline.
 `npx tsx scripts/build-timeline.ts public/projects/<slug>/source/<file>.mp4`
 writes `public/projects/<slug>/timeline.json` — the ordered clip list
 (`{id, label, startSeconds, endSeconds, playbackRate, muted, volume}`) that
-`buildTimeline` would otherwise derive on the fly. Once it exists, the
-Projects composition's `calculateMetadata` (`src/Root.tsx`) reads it instead
-of re-deriving the cut, so **editing the actual video is editing this file**
-— by hand, or by asking Claude:
+`buildTimeline` would otherwise derive on the fly. **Always run this once
+`typing.json` exists** — it's a mandatory pipeline step, not an
+edit-if-you-need-it extra. Once it exists, the Projects composition's
+`calculateMetadata` (`src/Root.tsx`) reads it instead of re-deriving the cut,
+so **editing the actual video is editing this file** — by hand, or by asking
+Claude:
 - **Trim** → change a clip's `startSeconds`/`endSeconds`
 - **Move/reorder** → reorder entries in the `clips` array (array order = playback order, clips are always gap-free)
 - **Delete** → remove an entry
 - **Split** → duplicate an entry into two, each covering part of the original range
+
+The other reason to always generate it: it's the only place to hand-cut
+something that falls inside a silence-or-speech range but shouldn't ship —
+e.g. a transient in-app error message flashing up mid-loading-stretch. Split
+the enclosing `typingSegments` range around it in `typing.json` (see
+`docs/project/typing.md`'s "Excising unwanted content"), rerun
+`build-timeline.ts`, and the excised window is simply gone — uncovered by
+any clip.
 
 Delete `timeline.json` to fall back to the auto-generated cut again.
 

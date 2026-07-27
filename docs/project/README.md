@@ -14,7 +14,13 @@ Every file the editing pipeline writes into `public/projects/<slug>/` (see
 
 Pipeline order: `analyze-video` / `extract-audio`→`transcribe` /
 `detect-silence`→`export-silence-frames`→(hand-classify `typing.json`)→
-`build-timeline`. Only `silence.json` + `typing.json` feed the actual cut
-(`buildTimeline()`/`timeline.json`) — `video-metadata.json` and
-`captions.json` are independent, and `silence-frames/manifest.json` is only
-an index for classifying `typing.json`.
+`build-timeline`. `build-timeline` is a mandatory step, always run, not an
+optional extra — it's the only place to hand-cut something that falls
+inside a silence-or-speech range but shouldn't be in the final video (e.g.
+a transient in-app error message flashing up mid-loading-stretch: split the
+enclosing `typingSegments` range around it in `typing.json`, rerun
+`build-timeline`, the excised window is simply gone). Only `silence.json` +
+`typing.json` feed the actual cut (`buildTimeline()`/`timeline.json`) —
+`video-metadata.json` and `captions.json` are independent, and
+`silence-frames/manifest.json` is only an index for classifying
+`typing.json`.

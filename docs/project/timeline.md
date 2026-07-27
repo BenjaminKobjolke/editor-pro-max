@@ -53,4 +53,9 @@ Total duration is derived, not stored: `clipsTotalFrames()`
 playbackRate * fps)` per clip.
 
 Delete this file to fall back to the auto-generated cut from `silence.json` +
-`typing.json` again.
+`typing.json` again — but generating it is a **mandatory pipeline step**,
+always run after `typing.json` exists/changes, not an optional extra left to
+the `calculateMetadata` fallback. It's the only place to hand-cut something
+that's technically silence-or-speech but shouldn't ship (see `typing.md`'s
+"Excising unwanted content" for the pattern: split a `typingSegments` range
+around the unwanted window, rerun this script, the gap is simply omitted).

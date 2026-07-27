@@ -32,3 +32,25 @@ timestamp by eye.
 Where a `typingSegment` overlaps a `speechSegment`, `buildTimeline()` gives
 speech priority (trims the typing span down or drops it). Anything not
 covered by `speechSegments` or `typingSegments` is pure silence and gets cut.
+
+**Excising unwanted content from inside a stretch:** since anything
+uncovered is cut, splitting one `typingSegments` range into two adjacent
+ones with a gap removes whatever's in that gap from the final video
+entirely — not just skipped-past, gone. Useful for a transient in-app error
+message, a UI glitch, or any other flash of on-screen content that shouldn't
+ship, sitting inside an otherwise-worth-keeping loading/typing stretch:
+
+```json
+{
+  "typingSegments": [
+    {"start": 18.12325, "end": 25.1},
+    {"start": 28.9, "end": 37.051313}
+  ]
+}
+```
+
+Here the original single 18.12–37.05s loading stretch had a 25.1–28.9s
+window (an "AI service temporarily unavailable" error blip, pinpointed by
+sampling extra frames at 0.5s intervals around it) sliced out — that window
+is simply cut, not sped up. Always rerun `scripts/build-timeline.ts` after
+an edit like this (see `timeline.md`) — it isn't optional.

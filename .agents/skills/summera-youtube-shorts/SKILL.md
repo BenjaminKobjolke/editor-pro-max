@@ -88,9 +88,8 @@ Endscreen and music are shared across projects (`ASSET_PATHS` in
    just means redoing steps 1-3 - they always overwrite the same
    project-scoped files, so there's nothing to clean up first.
 
-4. **Build the timeline**
-   `src/utils/buildTimeline.ts` merges `speechSegments` + `typingSegments`
-   into an ordered, gap-free `Clip[]`:
+4. **Build the timeline** - `src/utils/buildTimeline.ts` merges
+   `speechSegments` + `typingSegments` into an ordered, gap-free `Clip[]`:
    - speech -> `playbackRate: 1`, audible, boosted volume
    - typing -> `playbackRate: typingSpeed` (e.g. 4), muted
    - speech always wins where a typing range overlaps speech (trimmed via
@@ -98,6 +97,20 @@ Endscreen and music are shared across projects (`ASSET_PATHS` in
    - anything not covered by either -> simply omitted, i.e. cut
    Has a `--self-check` (`npx tsx src/utils/buildTimeline.ts --self-check`)
    - run it after touching the merge/trim logic.
+
+   **Always materialize it to disk** - don't leave this to the runtime
+   fallback in `Root.tsx`'s `calculateMetadata`:
+   ```bash
+   npx tsx scripts/build-timeline.ts public/projects/<slug>/source/<main>.mp4
+   ```
+   -> `public/projects/<slug>/timeline.json`. This is a mandatory pipeline
+   step, not an optional extra - it's the only place to hand-cut something
+   that's technically silence-or-speech but shouldn't be in the final video
+   (e.g. a transient in-app error message that flashes up during a loading
+   stretch: split the enclosing `typingSegments` range around it in
+   `typing.json`, rerun this script, and the excised window is simply gone -
+   uncovered by any clip). Rerun it any time `silence.json`/`typing.json`
+   change; it always overwrites the same file.
 
 5. **Composition** - `src/compositions/YoutubeShortEdit.tsx` is a shared,
    generic component reused by every project (no per-video `.tsx` files):
@@ -170,10 +183,13 @@ Endscreen and music are shared across projects (`ASSET_PATHS` in
    a sane duration under its generated composition id.
 5. `npm run dev` -> Studio -> open the project under the **Projects**
    folder, eyeball the cut points, typing speedup, and music swell.
-6. `npx remotion render <CompositionId> out/short.mp4` (id from step 4)
-   then `npx remotion ffprobe -show_entries format=duration -show_entries
-   stream=width,height,codec_type out/short.mp4` to confirm dimensions,
-   duration, and that both video+audio streams are present.
+6. `npx remotion render <CompositionId> out/<slug>.mp4` (id from step 4;
+   `<slug>` = the input filename without extension, matching `new-project.ts`'s
+   naming - e.g. `20260726_moneybag_yo_i_see_why.mp4` -> `out/20260726_moneybag_yo_i_see_why.mp4`,
+   never a shortened/renamed variant) then `npx remotion ffprobe
+   -show_entries format=duration -show_entries stream=width,height,codec_type
+   out/<slug>.mp4` to confirm dimensions, duration, and that both video+audio
+   streams are present.
 
 ## Related skills
 
