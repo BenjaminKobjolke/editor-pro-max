@@ -12,6 +12,7 @@ dist/
 
 # Local planning artifacts
 claude-plans/
+tmp/commit_msg.tmp
 
 # Agent configs (created by skills installer for other AI tools)
 .codebuddy/
