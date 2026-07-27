@@ -17,5 +17,10 @@ export const PROJECTS: ProjectEntry[] = [
     "slug": "20260725_german_rap_sido",
     "compositionId": "GermanRapSido",
     "mainSrc": "projects/20260725_german_rap_sido/source/20260725_german_rap_sido.mp4"
+  },
+  {
+    "slug": "20260726_moneybag_yo_i_see_why",
+    "compositionId": "MoneybagYoISeeWhy",
+    "mainSrc": "projects/20260726_moneybag_yo_i_see_why/source/20260726_moneybag_yo_i_see_why.mp4"
   }
 ];
