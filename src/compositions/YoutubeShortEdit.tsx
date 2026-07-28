@@ -37,6 +37,10 @@ export const YoutubeShortEdit: React.FC<YoutubeShortEditProps> = ({
 }) => {
   const {fps, durationInFrames} = useVideoConfig();
 
+  // Pillar-bar fill: blurred muted copy behind a contain-fit main layer, so
+  // sources taller than 9:16 (e.g. 1080x2460 phone recordings) aren't cropped.
+  const backgroundClips = clips.map((c) => ({...c, muted: true, volume: 0}));
+
   // Swell in sync with the video crossfade, so the music visibly picks up as the endscreen takes over.
   const swellStart = mainFrames - transitionFrames;
   const fadeOutFrames = Math.round(musicFadeOutSeconds * fps);
@@ -60,7 +64,15 @@ export const YoutubeShortEdit: React.FC<YoutubeShortEditProps> = ({
     <AbsoluteFill style={{backgroundColor}}>
       <TransitionSeries>
         <TransitionSeries.Sequence durationInFrames={mainFrames}>
-          <SegmentedClip src={mainSrc} clips={clips} fit="cover" />
+          <AbsoluteFill>
+            <SegmentedClip
+              src={mainSrc}
+              clips={backgroundClips}
+              fit="cover"
+              style={{filter: "blur(40px)", transform: "scale(1.12)"}}
+            />
+            <SegmentedClip src={mainSrc} clips={clips} fit="contain" />
+          </AbsoluteFill>
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition {...TRANSITION_PRESETS.fadeSlow} />
         <TransitionSeries.Sequence durationInFrames={endscreenFrames}>

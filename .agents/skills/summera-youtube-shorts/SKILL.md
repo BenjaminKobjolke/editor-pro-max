@@ -120,6 +120,16 @@ Endscreen and music are shared across projects (`ASSET_PATHS` in
    - `SegmentedClip` (`src/components/media/SegmentedClip.tsx`) is a
      per-clip-speed/mute generalization of `JumpCut` - renders a `<Series>`
      of `VideoClip`s from the `buildTimeline` output.
+   - Fit: the main clip renders as **two layers** — a blurred, muted,
+     `fit="cover"` copy (`blur(40px)` + `scale(1.12)` to hide the blur
+     fringe) behind a `fit="contain"` foreground. Phone screen recordings
+     are often taller than 9:16 (e.g. 1080x2460) and a plain `cover` crops
+     ~270px off top and bottom — status bar, answer text, bottom UI gone.
+     With contain+blur the full frame stays visible and the pillar bars are
+     filled; for an exactly-9:16 source the blurred layer is simply hidden
+     behind the full-frame foreground, so it needs no per-project switch.
+     The background copy must be muted (`{...clip, muted: true, volume: 0}`)
+     or the speech audio doubles.
    - Music: **don't** use `AudioTrack`'s `duckDuringSegments` for this - it
      hard-sets volume with no ramp, so the quiet->loud jump at the endscreen
      sounds like an instant cut. Use `<Audio>` directly with a custom
