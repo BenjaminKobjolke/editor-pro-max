@@ -22,5 +22,10 @@ export const PROJECTS: ProjectEntry[] = [
     "slug": "20260726_moneybag_yo_i_see_why",
     "compositionId": "MoneybagYoISeeWhy",
     "mainSrc": "projects/20260726_moneybag_yo_i_see_why/source/20260726_moneybag_yo_i_see_why.mp4"
+  },
+  {
+    "slug": "2026_07_28_wifi_password",
+    "compositionId": "WifiPassword",
+    "mainSrc": "projects/2026_07_28_wifi_password/source/2026_07_28_wifi_password.mp4"
   }
 ];
